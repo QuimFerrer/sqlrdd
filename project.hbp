@@ -1,0 +1,24 @@
+# test
+#
+
+-n -q0 -static
+
+#Includes
+-I.\include
+-L.\lib
+
+xhb.hbc
+hbodbc.hbc
+
+#libs
+-lsqlrdd
+-llibmysql
+-lfbclient
+-lfbclient_bc
+-llibpq
+-loci
+-lodbccp32
+
+-ot
+
+prg\demo01.prg
