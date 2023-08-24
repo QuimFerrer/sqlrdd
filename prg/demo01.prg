@@ -5,158 +5,159 @@
 */
 
 #include "sqlrdd.ch"
+#include "myconn.ch"       // Personal credentials
 
 #define RECORDS_IN_TEST                   1000
 #define SQL_DBMS_NAME                       17
 #define SQL_DBMS_VER                        18
 
+REQUEST SQLRDD             // SQLRDD should be linked in
+REQUEST SQLEX              // SQLRDD Extreme should be linked in
+
+// REQUEST SR_ODBC            // Needed if you plan to connect with ODBC
+// REQUEST SR_PGS             // Needed if you plan to use native connection to Postgres
+REQUEST SR_MYSQL           // Needed if you plan to use native connection to MySQL
+// REQUEST SR_ORACLE          // Needed if you plan to use native connection to Oracle
+// REQUEST SR_FIREBIRD        // Needed if you plan to use native connection to Firebird
+
+REQUEST DBFNTX
+REQUEST DBFCDX
+REQUEST DBFFPT
+REQUEST DBFDBT
+
+
 /*------------------------------------------------------------------------*/
 
-Function Main( cRDD, cDSN )
+PROCEDURE main()
 
-   local aStruct := {{"CODE_ID","C",8,0 },;
-                     {"CARDID","C",1,0},;
-                     {"DESCR","C",50,0},;
-                     {"PERCENT","N",10,2},;
-                     {"DAYS","N",8,0},;
-                     {"DATE_LIM","D",8,0},;
-                     {"ENABLE","L",1,0},;
-                     {"OBS","M",10,0},;
-                     {"VALUE","N",18,6}}
-   local nCnn, i
-SR_SETSQL2008NEWTYPES(.t.)
-   ? ""
-   ? "demo01.exe"
-   ? ""
-   ? "Small SQLRDD demo"
-   ? "(c) 2003 - Marcelo Lombardo"
-   ? ""
+   local nCnn, cTable
+   local cRDD, cConnString
+   local aFiles, oSql
+   local aRows := {}
 
-   ? "Connecting to database..."
+   RddSetDefault( "DBFCDX" )
+
+   // Funciona indistintamente
+   cConnString := "MySQL=localhost;UID=root;PWD="+__PWD__+";DTB="+__DB__
+   cConnString := "Server=localhost; Port=3306; Database="+__DB__+"; Uid=root; Pwd="+__PWD__+";"
+
+   SR_SETSQL2008NEWTYPES(.t.)
    SR_SetMininumVarchar2Size( 2 ) 
-   SR_SetOracleSyntheticVirtual( .F. )
+   SR_UseDeleteds(.f.)
+   SR_SetlUseDBCatalogs( .T. )    // Utilizar indices de la BD
 
-   sr_usedeleteds(.f.)
-   Connect( @cRDD, cDSN )    // see connect.prg
+   ? "Test SQLRDD"
+   ? ""
+   ? "Connecting to database..."
+
+   cRDD := "SQLRDD"
+   nCnn := SR_AddConnection( CONNECT_MYSQL, cConnString )
 
    ? "Connected to        :", SR_GetConnectionInfo(, SQL_DBMS_NAME ), SR_GetConnectionInfo(, SQL_DBMS_VER )
+   ? "RDD Version         :", SR_Version()
    ? "RDD in use          :", cRDD
-   altd()
-   ? "Creating table      :", dbCreate( "test_table4", aStruct, cRDD )
-   ? "Creating table      :", dbCreate( "test_table41", aStruct, cRDD )
-   USE "test_table41" NEW EXCLUSIVE VIA cRDD
-   Index on CODE_ID+DESCR            tAG test_table4_IND01
-   Index on str(DAYS)+dtos(DATE_LIM) tAG test_table4_IND02
-   index on code_id+str(DAYS)+dtos(DATE_LIM) tAG test_table4_IND03
+   ? "ConnectionType      :", SR_GetConnection():nConnectionType
 
+   CreaTabla( cRDD )
 
-   USE "test_table4" NEW EXCLUSIVE VIA cRDD
+   ListaTablas()
 
-   ? "Table opened. Alias :", select(), alias(), RddName()
-   ? "Fieldpos( CODE_ID ) :", Fieldpos( "CODE_ID" )
-   ? "Fieldpos( DESCR )   :", Fieldpos( "DESCR" )
+   // Tablas creadas fuera del RDD fallan, error apertura !
+   // Si queremos abrir una tabla con USE cTable VIA SQLRDD, que no haya sido creada con el RDD, 
+   // tendremos que modificar la estructura y añadir un campo en dicha tabla
+   // `sr_recno` BIGINT(20) NOT NULL AUTO_INCREMENT, UNIQUE INDEX `sr_recno` (`sr_recno`) USING BTREE
+   // USE ( cTable ) VIA cRDD
+   // BROWSE()
 
-   ? "Creating 02 indexes..."
+   //SqlQuery()
 
-   Index on CODE_ID+DESCR            to test_table4_IND01
-   Index on str(DAYS)+dtos(DATE_LIM) to test_table4_IND02
-   index on code_id+str(DAYS)+dtos(DATE_LIM) to test_table4_IND03
-   index on dtos(date_lim) to test_table4_IND04
+   RddQuery()
 
-
-   ? "Appending " + alltrim(str(RECORDS_IN_TEST)) + " records.."
-
-   s := seconds()
-
-   For i = 1 to RECORDS_IN_TEST
-      Append Blank
-      Replace CODE_ID  with strZero( i, 5 )
-      Replace DESCR    with dtoc( date() ) + " - " + time()
-      Replace DAYS     with (RECORDS_IN_TEST - i)
-      Replace DATE_LIM with date() + if(i%2 == 0,4,if(i%3==0,12,3))
-      Replace ENABLE   with .T.
-      Replace OBS      with "This is a memo field. Seconds since midnight : " + alltrim(str(seconds()))
-   Next
-
-   ? "dbClearIndex()      :", dbClearIndex()
-   ? "dbCloseArea()       :", dbCloseArea()
-
-   USE "test_table4" SHARED VIA cRDD
-
-   ? "Opening Indexes"
-   SET INDEX TO test_table4_IND01
-   SET INDEX TO test_table4_IND02 ADDITIVE
-   SET INDEX TO test_table4_IND03 ADDITIVE
-   SET INDEX TO test_table4_IND04 ADDITIVE
-altd()
-set order to 4
-?"dbseek( dtos(date()),.t.)   ",dbseek( dtos(date()),.t.),date_lim
-?"dbseek( dtos(date()+4),.t.) ",dbseek( dtos(date()+4),.t.),date_lim
-?"dbseek( dtos(date()+5),.t.) ",dbseek( dtos(date()+5),.t.),date_lim
-?"dbseek( dtos(date()+12),.t.)",dbseek( dtos(date()+12),.t.),date_lim
-?"dbseek( dtos(date()))       ",dbseek( dtos(date())),date_lim
-?"dbseek( dtos(date()+4))     ",dbseek( dtos(date()+4)),date_lim
-?"dbseek( dtos(date()+5))     ",dbseek( dtos(date()+5)),date_lim
-?"dbseek( dtos(date()+12))    ",dbseek( dtos(date()+12)),date_lim
-inkey(0)
-   sr_starttrace()
-set order to 1
-go top
-BROWSE()
-set order to 2
-go top
-BROWSE()
-set order to 3
-go top
-BROWSE()
-
-   ? "Set Order to 1      :", OrdSetFocus(1)
-   ? "Seek                :", dbSeek( "00002" )
-
-   ? "found()             :", found()
-   ? "Recno(),bof(),eof() :", recno(), bof(), eof()
-   ? "dbUnLock()          :", dbUnLock()
-   ? "RLock(), dbRLockList:", rlock(), sr_showVector( dbRLockList() )
-   ? "Writes to the WA    :", FIELD->DESCR := "Hello, SQL!", FIELD->PERCENT  := 23.55
-   ? "dbCommit()          :", dbCommit()
-   ? " "
-   ? "Press any key to browse()"
-
-   inkey(0)
-   clear
-
-   browse(row()+1,1,row()+20,80)
-
-   clear
-
-   ? "Order 2, key is     :", OrdSetFocus(2), ordKey()
-
-   OrdScope( 0, str(RECORDS_IN_TEST / 4,8) )
-   OrdScope( 1, str(RECORDS_IN_TEST / 2,8) )
-
-   ? "TOP Scope           :", OrdScope( 0 )
-   ? "BOTTOM Scope        :", OrdScope( 1 )
-
-   ? "Press any key to browse() with another index and scope"
-   inkey(0)
-   dbGoTop()
-   clear
-   browse(row()+1,1,row()+20,80)
-
-   SET SCOPE TO
-
-   ? "Scope removed"
-   ? "Press any key to browse()"
-   inkey(0)
-
-   dbGoTop()
-   clear
-   browse(row()+1,1,row()+20,80)
-
-Return NIL
+RETURN
 
 /*------------------------------------------------------------------------*/
 
-#include "connect.prg"
+PROCEDURE CreaTabla( cRDD )
+   
+   local nArea 
+   local cTable  := "customer"
+   local aStruct := {;
+      {"ID",   "N", 10,0 },;
+      {"FIRST","C", 40,0 },;
+      {"LAST", "C", 40,0 },;
+      {"AGE",  "N", 10,0 } ; 
+   }
+
+   if ! SR_ExistTable( cTable ) 
+      ? "Creating table      :", dbCreate( cTable, aStruct, cRDD )
+   endif
+
+   USE ( cTable ) EXCLUSIVE VIA ( cRDD )
+   nArea := select()
+   ( nArea )->( dbappend() )
+   ( nArea )->FIRST   := "Mark"
+   ( nArea )->LAST    := "Baley"
+   ( nArea )->AGE     := 39
+   ( nArea )->( dbgotop() )
+
+   ? "Records      :", ( nArea )->( reccount() )
+
+RETURN
+
+/*------------------------------------------------------------------------*/
+
+PROCEDURE ListaTablas()
+
+   local aFiles, i
+
+   aFiles := SR_ListTables("getex") 
+   ? "Tablas de la BD     :", len(aFiles)
+
+   ? "Lista de Tablas"
+   for each i in aFiles 
+      // Descartar tablas de sistema
+      if ! left( i, 3 ) $ "SR_;TOP;SYS;DTP"
+         ? i
+      endif
+   next 
+   WAIT
+
+RETURN
+
+/*------------------------------------------------------------------------*/
+
+PROCEDURE SqlQuery()
+
+   local oSql, a, i
+   local aRows := {}
+
+   oSql:= SR_GetConnection()
+   oSql:Exec("select * from customer",, .T., @aRows )
+   ? oSql:GetAffectedRows()
+
+   ? valtype(aRows), len(aRows)
+   ? valtype(aRows[1])
+
+   for each a in aRows 
+      for each i in a
+         ?? i
+      next 
+      ?
+   next 
+   WAIT
+
+RETURN
+
+/*------------------------------------------------------------------------*/
+
+PROCEDURE RddQuery()
+
+   dbUseArea( .F., "SQLRDD", "select * from customer", "customer" )
+   ? customer->FIRST
+   WAIT
+
+   BROWSE()
+
+RETURN
 
 /*------------------------------------------------------------------------*/

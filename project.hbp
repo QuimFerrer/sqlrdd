@@ -8,16 +8,20 @@
 -L.\lib
 
 xhb.hbc
-hbodbc.hbc
+#hbodbc.hbc
 
 #libs
--lsqlrdd
 -llibmysql
 -lfbclient
 -lfbclient_bc
 -llibpq
 -loci
+-lociliba
+-lodbc32
 -lodbccp32
+#-lhbodbc
+#-lhbodbc-bcc
+-lsqlrddpp
 
 -ot
 
